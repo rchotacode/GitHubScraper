@@ -45,4 +45,4 @@ def fetch_content(url : str, headers: dict) -> str:
         else:
             raise Exception(f"Error fetching data: {response.status_code} - {response.text}")
 
-    return b64decode(response.json().get('content', ''))
+    return b64decode(response.json().get('content', '')).decode('utf-8')

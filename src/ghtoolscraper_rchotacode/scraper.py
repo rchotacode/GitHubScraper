@@ -1,15 +1,16 @@
 from ghtoolscraper_rchotacode._fetcher import fetch_page, fetch_repo, fetch_content
 import os
-from multiprocessing.pool import ThreadPool
+from concurrent.futures import ThreadPoolExecutor
 from threading import Lock
 from ghtoolscraper_rchotacode._rate_limit_exception import RateLimitException
 from itertools import cycle
 import time
 import json
+import copy
 
 class ThreadedScraper:
-    def __init__(self, query : str, tokens : list, per_page : int = 10, max_threads : int = 5, 
-                 output_dir : str = "./repos", timeout : int = 5):
+    def __init__(self, query : str, target : str, tokens : list, per_page : int = 10, max_threads : int = 5, 
+                 output_dir : str = "./repos", timeout : int = 5, target_val : str = "TARGET"):
         self.query = query
         self.per_page = per_page
         self.max_threads = max_threads
@@ -18,13 +19,15 @@ class ThreadedScraper:
         os.makedirs(self.output_dir, exist_ok=True)
         self.tokens = cycle(tokens)
         self.timeout = timeout
+        self.target = target
+        self.target_val = target_val
         self.headers = {
             'Accept': 'application/vnd.github.v3+json',
             'User-Agent': 'Mozilla/5.0',
             'Authorization': f'Bearer {next(self.tokens)}'
         }
     
-    def _tokenized_request(self, func, *args) -> dict:
+    def _tokenized_request(self, func, *args):
         stop = False
         response = None
         while not stop:
@@ -32,6 +35,7 @@ class ThreadedScraper:
                 response = func(*args, headers=self.headers)
                 stop = True
             except RateLimitException:
+                print("Rate limit exceeded. Switching token and retrying...")
                 self.headers['Authorization'] = f'Bearer {next(self.tokens)}'
                 time.sleep(self.timeout)
             except Exception as e:
@@ -41,7 +45,7 @@ class ThreadedScraper:
 
 
     def scrape(self, page_start = 1):
-        threads = ThreadPool(self.max_threads)
+        threads = ThreadPoolExecutor(max_workers=self.max_threads)
 
         first_page = self._tokenized_request(fetch_page, self.query, page_start, self.per_page)
         total_count = first_page['total_count']
@@ -54,7 +58,7 @@ class ThreadedScraper:
             if len(page_results['items']) == 0:
                 break
             for repo in page_results['items']:
-                threads.apply(self._scrape_page, args=(repo, page))
+                threads.submit(self._scrape_page, args=(repo, page))
         threads.close()
 
     def _scrape_page(self, repo, page):
@@ -70,14 +74,17 @@ class ThreadedScraper:
             print(f"Error fetching tree for {repo['full_name']}: {tree.get('message', 'Unknown error')}")
             return
         nested_tree, index_map = self._nest_tree(tree['tree'])
-        
+        blob_url = f"https://api.github.com/repos/{repo['full_name']}/git/blobs/"
+        prompt_trees, targs = self._create_prompt_trees(nested_tree, index_map, blob_url)
+
         with open(f"{self.output_dir}/page_{page}/{repo['full_name']}/tree.json", 'w') as f:
             json.dump({
-                "tree": nested_tree,
+                "prompt_trees": prompt_trees,
                 "index_map": index_map,
-                }, f)
+                "targs": targs
+            }, f, indent=4)
             print(f"Saved tree for {repo['full_name']} to {self.output_dir}/page_{page}/{repo['full_name']}/tree.json")
-
+            print(f"Total items in tree: {len(prompt_trees)} with targets {len(targs)}")
 
     def _nest_tree(self, tree):
         nested_tree = {}
@@ -97,3 +104,21 @@ class ThreadedScraper:
                 index += 1
         return nested_tree, index_map
     
+    def _create_prompt_trees(self, full_tree, index_map, blob_url):
+        prompt_trees = []
+        targs = []
+        def recurse(path=[], cur_tree=full_tree):
+            for key, value in cur_tree.items():
+                if key == self.target:
+                    cp_tree = copy.deepcopy(full_tree)
+                    t = cp_tree
+                    for p in path:
+                        t = t[p]
+                    t[self.target] = self.target_val
+                    prompt_trees.append(cp_tree)
+                    blob_sha = index_map[value]
+                    targs.append(self._tokenized_request(fetch_content, f"{blob_url}{blob_sha}"))                       
+                elif isinstance(value, dict):
+                    recurse(path + [key], value)
+        recurse()
+        return prompt_trees, targs
