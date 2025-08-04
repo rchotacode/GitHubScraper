@@ -1,0 +1,1 @@
+from ghtoolscraper_rchotacode.scraper import ThreadedScraper
