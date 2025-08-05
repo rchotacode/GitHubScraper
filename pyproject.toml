@@ -1,5 +1,8 @@
 [build-system]
-requires = ["hatchling >= 1.26"]
+requires = [
+  "hatchling >= 1.26",
+  "requests >= 2.32.4"
+]
 build-backend = "hatchling.build"
 [project]
 name = "ghtoolscraper_rchotacode"
@@ -19,5 +22,5 @@ license-files = ["LICEN[CS]E*"]
 packages = ["src/ghtoolscraper_rchotacode"]
 
 [project.urls]
-Homepage = "https://github.com/pypa/sampleproject"
-Issues = "https://github.com/pypa/sampleproject/issues"
+Homepage = "https://github.com/rchotacode/GitHubScraper"
+Issues = "https://github.com/rchotacode/GitHubScraper/issues"
