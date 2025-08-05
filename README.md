@@ -13,9 +13,7 @@ A threaded GitHub repository scraper for fetching repository trees and content u
 ## Usage
 
 ```python
-from ghtoolscraper_rchotacode._fetcher import fetch_page, fetch_repo, fetch_content
-from ghtoolscraper_rchotacode._rate_limit_exception import RateLimitException
-from threaded_scraper import ThreadedScraper
+from ghtoolscraper_rchotacode import ThreadedScraper
 
 tokens = ["ghp_XXXX", "ghp_YYYY"]  # List of GitHub tokens
 scraper = ThreadedScraper(
@@ -32,7 +30,7 @@ scraper.scrape(page_start=1)
 ## Requirements
 
 - Python 3.7+
-- `ghtoolscraper_rchotacode` package
+- `ghtoolscraper_rchotacode` package installed through the pyproject.toml
 
 ## Configuration
 
