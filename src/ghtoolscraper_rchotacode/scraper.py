@@ -1,8 +1,9 @@
 from ghtoolscraper_rchotacode._fetcher import fetch_page, fetch_repo, fetch_content
+from ghtoolscraper_rchotacode._rate_limit_exception import RateLimitException
+
 import os
 from concurrent.futures import ThreadPoolExecutor
 from threading import Lock
-from ghtoolscraper_rchotacode._rate_limit_exception import RateLimitException
 from itertools import cycle
 import time
 import json

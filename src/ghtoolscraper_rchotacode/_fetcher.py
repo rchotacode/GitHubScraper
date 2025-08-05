@@ -1,6 +1,7 @@
+from ghtoolscraper_rchotacode._rate_limit_exception import RateLimitException
+
 import requests
 import json
-from ghtoolscraper_rchotacode._rate_limit_exception import RateLimitException
 from base64 import b64decode
 
 def fetch_page(query : str, page : int = 1, per_page : int = 10, sort : str = "stars", headers : dict = None) -> dict:
