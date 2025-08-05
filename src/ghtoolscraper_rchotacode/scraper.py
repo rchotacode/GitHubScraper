@@ -10,7 +10,7 @@ import copy
 
 class ThreadedScraper:
     def __init__(self, query : str, target : str, tokens : list, per_page : int = 10, max_threads : int = 5, 
-                 output_dir : str = "./repos", timeout : int = 5, target_val : str = "TARGET"):
+                 output_dir : str = "./repos", timeout : int = 1, target_val : str = "TARGET"):
         self.query = query
         self.per_page = per_page
         self.max_threads = max_threads
@@ -28,26 +28,29 @@ class ThreadedScraper:
         }
     
     def _tokenized_request(self, func, *args):
+        print("Requesting with token")
         stop = False
         response = None
         while not stop:
             try:
                 response = func(*args, headers=self.headers)
                 stop = True
-            except RateLimitException:
-                print("Rate limit exceeded. Switching token and retrying...")
+            except RateLimitException as e:
+                print(f"Rate limit exceeded. Switching token and retrying... {e}")
                 self.headers['Authorization'] = f'Bearer {next(self.tokens)}'
-                time.sleep(self.timeout)
+                time.sleep(self.timeout * 10)
             except Exception as e:
                 print(f"Error: {e}")
                 stop = True
+        time.sleep(self.timeout)  # Sleep to avoid hitting rate limits too quickly
         return response
 
 
     def scrape(self, page_start = 1):
         threads = ThreadPoolExecutor(max_workers=self.max_threads)
-
+        print("thread pool created")
         first_page = self._tokenized_request(fetch_page, self.query, page_start, self.per_page)
+        print("First page fetched")
         total_count = first_page['total_count']
 
         final_run = 1 if total_count % self.per_page == 0 else 0
@@ -58,8 +61,8 @@ class ThreadedScraper:
             if len(page_results['items']) == 0:
                 break
             for repo in page_results['items']:
-                threads.submit(self._scrape_page, args=(repo, page))
-        threads.close()
+                print("Provisioning Thread")
+                threads.submit(self._scrape_page, repo, page)
 
     def _scrape_page(self, repo, page):
         with self.lock:
@@ -79,6 +82,7 @@ class ThreadedScraper:
 
         with open(f"{self.output_dir}/page_{page}/{repo['full_name']}/tree.json", 'w') as f:
             json.dump({
+                "original_tree": nested_tree,
                 "prompt_trees": prompt_trees,
                 "index_map": index_map,
                 "targs": targs
